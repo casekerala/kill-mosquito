@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Kill Mosquito</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style>
+    body {
+      margin: 0;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: #050816;
+      color: #f5f5f5;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      overflow: hidden;
+      text-align: center;
+    }
+
+    h1 {
+      margin-bottom: 0.25rem;
+      font-size: 2rem;
+    }
+
+    p {
+      margin-top: 0;
+      opacity: 0.8;
+    }
+
+    #game-area {
+      position: relative;
+      width: 90vw;
+      max-width: 500px;
+      height: 60vh;
+      max-height: 500px;
+      border-radius: 16px;
+      border: 1px solid #333;
+      background: radial-gradient(circle at top, #1b2735, #090a0f);
+      overflow: hidden;
+      cursor: crosshair;
+      margin-top: 1rem;
+    }
+
+    #mosquito {
+      position: absolute;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 34px;
+      user-select: none;
+      cursor: pointer;
+      transition: transform 0.1s;
+    }
+
+    /* blood splatter */
+    #blood {
+      position: absolute;
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(255,0,0,0.9) 0%, rgba(120,0,0,0.7) 60%, transparent 70%);
+      pointer-events: none;
+      opacity: 0;
+      transform: scale(0.2);
+      transition: opacity 0.25s ease-out, transform 0.25s ease-out;
+    }
+
+    #blood.show {
+      opacity: 1;
+      transform: scale(1);
+    }
+
+    #stats {
+      margin-top: 1rem;
+      font-size: 1rem;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.25rem;
+    }
+
+    #kill-count {
+      font-weight: bold;
+      font-size: 1.2rem;
+    }
+
+    #global-count {
+      font-size: 0.95rem;
+      opacity: 0.9;
+    }
+
+    #message {
+      font-size: 0.9rem;
+      opacity: 0.85;
+      max-width: 420px;
+    }
+
+    #note {
+      margin-top: 0.25rem;
+      font-size: 0.75rem;
+      opacity: 0.6;
+      max-width: 420px;
+    }
+
+    button {
+      margin-top: 0.5rem;
+      padding: 0.45rem 1.1rem;
+      border-radius: 999px;
+      border: none;
+      background: #f97316;
+      color: #000;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    button:hover {
+      filter: brightness(1.1);
+    }
+  </style>
+</head>
+<body>
+  <h1>Kill Mosquito</h1>
+  <p>Got bitten? Missed the mosquito? Kill it here 🦟</p>
+
+  <div id="game-area">
+    <div id="mosquito">🦟</div>
+    <div id="blood"></div>
+  </div>
+
+  <div id="stats">
+    <div id="kill-count">Your mosquitoes killed: 0</div>
+    <div id="global-count">Global mosquitoes killed: 0</div>
+    <div id="message">Click the mosquito to avenge your bite.</div>
+    <button id="rage-button">I got bitten again 😡</button>
+    <div id="note">
+      Your kills are saved on this device. Global kills are stored in Firebase Firestore and shared across everyone.
+    </div>
+  </div>
+
+  <!-- All JS in one ES module -->
+  <script type="module">
+    /***********************
+     *  Firebase Imports   *
+     ***********************/
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
+    import {
+      getFirestore,
+      doc,
+      getDoc,
+      setDoc,
+      updateDoc,
+      increment
+    } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
+
+    /*******************************
+     *  Firebase Configuration     *
+     *******************************
+     * IMPORTANT:
+     * Replace the placeholder values below with
+     * the actual config from your Firebase console.
+     */
+     const firebaseConfig = {
+  apiKey: "AIzaSyCgwe5bBUauwInzqcdCO1UXU01OBYd7x10",
+  authDomain: "kill-mosquito.firebaseapp.com",
+  projectId: "kill-mosquito",
+  storageBucket: "kill-mosquito.firebasestorage.app",
+  messagingSenderId: "204577376592",
+  appId: "1:204577376592:web:6a1a51f8152b17d2888455",
+  measurementId: "G-NXBHJN59CM"
+};
+
+    // Initialize Firebase + Firestore
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    /***********************
+     *  DOM Elements       *
+     ***********************/
+    const gameArea = document.getElementById("game-area");
+    const mosquito = document.getElementById("mosquito");
+    const blood = document.getElementById("blood");
+    const killCountText = document.getElementById("kill-count");
+    const globalCountText = document.getElementById("global-count");
+    const messageText = document.getElementById("message");
+    const rageButton = document.getElementById("rage-button");
+
+    /***********************
+     *  Game State         *
+     ***********************/
+    const mosquitoTypes = [
+      { name: "Classic Mosquito", emoji: "🦟", size: 50, moveEveryMs: 700 },
+      { name: "Fast Mosquito",    emoji: "🪰", size: 45, moveEveryMs: 450 },
+      { name: "Boss Spider",      emoji: "🕷️", size: 55, moveEveryMs: 550 }
+    ];
+
+    let currentTypeIndex = 0;
+    let moveInterval = null;
+    let mosquitoBoxSize = mosquitoTypes[0].size;
+
+    // Local kills (per device)
+    let kills = parseInt(localStorage.getItem("killMosquito_kills") || "0", 10);
+
+    // Global kills (from Firestore)
+    let globalKills = 0;
+
+    /***********************
+     *  Firestore Helpers  *
+     ***********************/
+    async function fetchGlobalKills() {
+      try {
+        const docRefFS = doc(db, "stats", "global"); // collection "stats", doc "global"
+        const snap = await getDoc(docRefFS);
+
+        if (snap.exists()) {
+          const data = snap.data();
+          globalKills = data.globalKills || 0;
+        } else {
+          // if doc doesn't exist yet, create it with 0
+          await setDoc(docRefFS, { globalKills: 0 });
+          globalKills = 0;
+        }
+      } catch (err) {
+        console.error("Error fetching global kills:", err);
+      }
+      updateCounts();
+    }
+
+    async function incrementGlobalKills(amount = 1) {
+      try {
+        const docRefFS = doc(db, "stats", "global");
+        await updateDoc(docRefFS, { globalKills: increment(amount) });
+        globalKills += amount; // update local copy
+      } catch (err) {
+        console.error("Error updating global kills:", err);
+      }
+      updateCounts();
+    }
+
+    function updateCounts() {
+      killCountText.textContent = "Your mosquitoes killed: " + kills;
+      globalCountText.textContent = "Global mosquitoes killed: " + globalKills;
+    }
+
+    /***********************
+     *  Game Functions     *
+     ***********************/
+    function randomPosition() {
+      const areaRect = gameArea.getBoundingClientRect();
+      const size = mosquitoBoxSize;
+      const x = Math.random() * (areaRect.width - size);
+      const y = Math.random() * (areaRect.height - size);
+      mosquito.style.left = x + "px";
+      mosquito.style.top = y + "px";
+    }
+
+    function setMosquitoType(index) {
+      currentTypeIndex = Math.max(0, Math.min(index, mosquitoTypes.length - 1));
+      const type = mosquitoTypes[currentTypeIndex];
+
+      mosquito.textContent = type.emoji;
+      mosquito.style.width = type.size + "px";
+      mosquito.style.height = type.size + "px";
+      mosquitoBoxSize = type.size;
+
+      if (moveInterval) clearInterval(moveInterval);
+      moveInterval = setInterval(randomPosition, type.moveEveryMs);
+
+      randomPosition();
+    }
+
+    /***********************
+     *  Sound (Web Audio)  *
+     ***********************/
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    const audioCtx = new AudioCtx();
+
+    function playPop() {
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+
+      osc.type = "square";
+      osc.frequency.setValueAtTime(400, audioCtx.currentTime);
+
+      gain.gain.setValueAtTime(0.25, audioCtx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.15);
+
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+
+      osc.start();
+      osc.stop(audioCtx.currentTime + 0.15);
+    }
+
+    /***********************
+     *  Blood Effect       *
+     ***********************/
+    function showBlood() {
+      const mosRect = mosquito.getBoundingClientRect();
+      const areaRect = gameArea.getBoundingClientRect();
+
+      const bloodSize = 40;
+      const centerX = mosRect.left - areaRect.left + mosRect.width / 2;
+      const centerY = mosRect.top - areaRect.top + mosRect.height / 2;
+
+      blood.style.left = (centerX - bloodSize / 2) + "px";
+      blood.style.top = (centerY - bloodSize / 2) + "px";
+
+      blood.classList.add("show");
+      setTimeout(() => blood.classList.remove("show"), 250);
+    }
+
+    function randomKillMessage() {
+      const messages = [
+        "Nice shot. Your blood is avenged. 🩸",
+        "Rest in pieces, mosquito. 💀",
+        "Critical hit! No more buzzing. 🔇",
+        "Another one bites the dust. 🎯",
+        "You’re a certified mosquito hunter now. 🏅",
+        "Mosquito population: -1. Keep going. 📉"
+      ];
+      return messages[Math.floor(Math.random() * messages.length)];
+    }
+
+    /***********************
+     *  Event Listeners    *
+     ***********************/
+    mosquito.addEventListener("click", async () => {
+      // Required by some browsers before playing audio
+      if (audioCtx.state === "suspended") {
+        try { await audioCtx.resume(); } catch (e) {}
+      }
+
+      // Local kills
+      kills++;
+      localStorage.setItem("killMosquito_kills", String(kills));
+
+      // Global kills in Firestore
+      await incrementGlobalKills(1);
+
+      // UI feedback
+      messageText.textContent = randomKillMessage();
+      playPop();
+      showBlood();
+
+      mosquito.style.transform = "scale(0.6)";
+      setTimeout(() => {
+        mosquito.style.transform = "scale(1)";
+        randomPosition();
+      }, 120);
+
+      // Level up mosquito type every 10 kills
+      const nextIndex = Math.floor(kills / 10);
+      if (nextIndex > currentTypeIndex && nextIndex < mosquitoTypes.length) {
+        setMosquitoType(nextIndex);
+        messageText.textContent =
+          "New enemy unlocked: " + mosquitoTypes[nextIndex].name + " ⚠️";
+      }
+    });
+
+    rageButton.addEventListener("click", () => {
+      messageText.textContent = "Rage accepted. Spawning more targets… 💢";
+      randomPosition();
+    });
+
+    /***********************
+     *  Init on Page Load  *
+     ***********************/
+    updateCounts();              // show local kills (from localStorage)
+    setMosquitoType(0);          // start with first mosquito type
+    fetchGlobalKills();          // load global kills from Firestore
+  </script>
+</body>
+</html>
