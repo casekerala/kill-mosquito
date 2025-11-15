@@ -317,11 +317,40 @@
     /***********************
      *  Game State         *
      ***********************/
-    const mosquitoTypes = [
-      { name: "Classic Mosquito", emoji: "🦟", size: 50, moveEveryMs: 700 },
-      { name: "Fast Mosquito", emoji: "🪰", size: 45, moveEveryMs: 450 },
-      { name: "Boss Spider", emoji: "🕷️", size: 55, moveEveryMs: 550 }
-    ];
+    // Generate 50 levels with increasing speed
+// Generate 1000 levels for 10,000 kills (1 level = every 10 kills)
+const LEVEL_COUNT = 1000;
+
+// Speed scaling values
+const BASE_INTERVAL = 900;  // slowest enemy (level 1)
+const MIN_INTERVAL = 60;    // insanely fast at level 1000
+
+// Emojis cycle
+const emojis = ["🦟", "🪰", "🕷️", "🦂", "🦗", "🐝"];
+
+const mosquitoTypes = [];
+
+for (let i = 0; i < LEVEL_COUNT; i++) {
+  const level = i + 1;
+
+  // Smooth scaling from slow → extremely fast
+  const t = i / (LEVEL_COUNT - 1);
+  const moveEveryMs = Math.round(BASE_INTERVAL - t * (BASE_INTERVAL - MIN_INTERVAL));
+
+  // Slight size shrink at higher levels
+  const size = Math.max(20, 55 - i * 0.03); // min 20px
+
+  const emoji = emojis[i % emojis.length];
+
+  mosquitoTypes.push({
+    name: `Level ${level} Mosquito`,
+    emoji,
+    size,
+    moveEveryMs,
+  });
+}
+
+
 
     let currentTypeIndex = 0;
     let moveInterval = null;
