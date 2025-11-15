@@ -212,7 +212,7 @@
 </head>
 <body>
   <h1>Kill Mosquito</h1>
-  <p style="color: red; font-weight: bold;">Got bitten? Missed the mosquito? Kill it here🦟</p>
+  <p style="color: red; font-weight: bold;">Got bitten? Missed the mosquito? Kill it here!!🦟</p>
 
   <div id="game-area">
     <div id="mosquito">🦟</div>
@@ -319,35 +319,35 @@
      ***********************/
     // Generate 50 levels with increasing speed
 // Generate 1000 levels for 10,000 kills (1 level = every 10 kills)
+
 const LEVEL_COUNT = 1000;
+const BASE_INTERVAL = 650;  // was 900 – start faster
+const MIN_INTERVAL = 35;    // was 60 – end MUCH faster
 
-// Speed scaling values
-const BASE_INTERVAL = 900;  // slowest enemy (level 1)
-const MIN_INTERVAL = 60;    // insanely fast at level 1000
-
-// Emojis cycle
 const emojis = ["🦟", "🪰", "🕷️", "🦂", "🦗", "🐝"];
-
 const mosquitoTypes = [];
 
 for (let i = 0; i < LEVEL_COUNT; i++) {
   const level = i + 1;
 
-  // Smooth scaling from slow → extremely fast
-  // raw progression 0 → 1
-const rawT = i / (LEVEL_COUNT - 1);
+  // 0 → 1 across all levels
+  const rawT = i / (LEVEL_COUNT - 1);
 
-// curve it so early levels get harder faster
-// 0.6 makes the speed jump earlier; you can try 0.5 for even more aggressive
-const t = Math.pow(rawT, 0.6);
+  // More aggressive curve: makes things harder sooner
+  // 0.45 = very steep; try 0.5 if this is TOO crazy
+  const t = Math.pow(rawT, 0.45);
 
-const moveEveryMs = Math.round(
-  BASE_INTERVAL - t * (BASE_INTERVAL - MIN_INTERVAL)
-);
+  let moveEveryMs = Math.round(
+    BASE_INTERVAL - t * (BASE_INTERVAL - MIN_INTERVAL)
+  );
 
-  // Slight size shrink at higher levels
-  const size = Math.max(20, 55 - i * 0.03); // min 20px
+  // Extra early-game difficulty bump:
+  // from level 3 onwards, give a sharp speed boost
+  if (level >= 4 && moveEveryMs > 220) {
+    moveEveryMs -= 120; // instant jump in difficulty after level 2
+  }
 
+  const size = Math.max(20, 55 - i * 0.03);
   const emoji = emojis[i % emojis.length];
 
   mosquitoTypes.push({
