@@ -414,17 +414,24 @@
     }
 
     async function updateUserNickname(newName) {
-      if (!currentUserId) return;
-      const userRef = doc(db, "users", currentUserId);
-      try {
-        await updateDoc(userRef, {
-          nickname: newName,
-          updatedAt: serverTimestamp()
-        });
-      } catch (err) {
-        console.error("Error updating nickname:", err);
-      }
-    }
+  if (!currentUserId) return;
+
+  const userRef = doc(db, "users", currentUserId);
+  try {
+    await setDoc(
+      userRef,
+      {
+        nickname: newName,
+        updatedAt: serverTimestamp(),
+      },
+      { merge: true } // don’t overwrite totalKills etc.
+    );
+    console.log("Nickname updated in Firestore");
+  } catch (err) {
+    console.error("Error updating nickname:", err);
+  }
+}
+
 
     async function loadLeaderboard() {
       try {
@@ -596,15 +603,15 @@
     });
 
     saveNameButton.addEventListener("click", async () => {
-      const newName = nameInput.value.trim();
-      if (!newName) return;
-      currentNickname = newName;
-      playerNameSpan.textContent = newName;
-      if (currentUserId) {
-        await updateUserNickname(newName);
-        loadLeaderboard();
-      }
-    });
+  const newName = nameInput.value.trim();
+  if (!newName) return;
+  currentNickname = newName;
+  playerNameSpan.textContent = newName;
+  if (currentUserId) {
+    await updateUserNickname(newName);
+    loadLeaderboard();
+  }
+});
 
     /***********************
  *  Firebase Auth Init *
