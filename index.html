@@ -212,7 +212,7 @@
 </head>
 <body>
   <h1>Kill Mosquito</h1>
-  <p style="color: red; font-weight: bold;">Got bitten? Missed the mosquito? Kill it here!!🦟</p>
+  <p style="color: red; font-weight: bold;">Got bitten? Missed the mosquito? Kill it here!🦟</p>
 
   <div id="game-area">
     <div id="mosquito">🦟</div>
@@ -406,37 +406,49 @@ for (let i = 0; i < LEVEL_COUNT; i++) {
       killCountText.textContent = "Your mosquitoes killed: " + kills;
       globalCountText.textContent = "Global mosquitoes killed: " + globalKills;
     }
+    // Return the level index based on kills
+function getCurrentLevelIndex() {
+  const idx = Math.floor(kills / KILLS_PER_LEVEL);
+  return Math.max(0, Math.min(idx, mosquitoTypes.length - 1));
+}
+// Set mosquito speed/size to your true level
+function syncMosquitoToCurrentLevel() {
+  const levelIndex = getCurrentLevelIndex();
+  setMosquitoType(levelIndex);
+}
 
-    async function initUserDocument(uid) {
-      const userRef = doc(db, "users", uid);
-      try {
-        const snap = await getDoc(userRef);
-        if (snap.exists()) {
-          const data = snap.data();
-          kills = typeof data.totalKills === "number" ? data.totalKills : 0;
-          currentNickname = data.nickname || currentNickname;
-        } else {
-          await setDoc(userRef, {
-            nickname: currentNickname,
-            totalKills: 0,
-            createdAt: serverTimestamp(),
-            updatedAt: serverTimestamp()
-          });
-          kills = 0;
-        }
-
-        // sync to localStorage (optional, just for device persistence)
-        localStorage.setItem("killMosquito_kills", String(kills));
-
-        playerNameSpan.textContent = currentNickname;
-        nameInput.value = currentNickname;
-        updateCounts();
-        await loadLeaderboard();
-      } catch (err) {
-        console.error("Error initializing user document:", err);
-      }
+async function initUserDocument(uid) {
+  const userRef = doc(db, "users", uid);
+  try {
+    const snap = await getDoc(userRef);
+    if (snap.exists()) {
+      const data = snap.data();
+      kills = typeof data.totalKills === "number" ? data.totalKills : 0;
+      currentNickname = data.nickname || currentNickname;
+    } else {
+      await setDoc(userRef, {
+        nickname: currentNickname,
+        totalKills: 0,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      });
+      kills = 0;
     }
 
+    // 🔥 sync mosquito speed/size to the correct level based on kills
+    syncMosquitoToCurrentLevel();
+
+    // sync to localStorage (optional, just for device persistence)
+    localStorage.setItem("killMosquito_kills", String(kills));
+
+    playerNameSpan.textContent = currentNickname;
+    nameInput.value = currentNickname;
+    updateCounts();
+    await loadLeaderboard();
+  } catch (err) {
+    console.error("Error initializing user document:", err);
+  }
+}
     async function updateUserKills(incrementBy = 1) {
       if (!currentUserId) return;
       const userRef = doc(db, "users", currentUserId);
@@ -699,6 +711,7 @@ initAuthAndUser();
     if (!Number.isNaN(localKills)) {
       kills = localKills;
     }
+    syncMosquitoToCurrentLevel();
 
     const localName = localStorage.getItem("killMosquito_name");
     if (localName) {
@@ -708,7 +721,7 @@ initAuthAndUser();
     }
 
     updateCounts();
-    setMosquitoType(0);
+    syncMosquitoToCurrentLevel();
     fetchGlobalKills();
     loadLeaderboard();
 
