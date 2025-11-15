@@ -212,7 +212,7 @@
 </head>
 <body>
   <h1>Kill Mosquito</h1>
-  <p style="color: red; font-weight: bold;">Got bitten? Missed the mosquito? Kill it here !!🦟</p>
+  <p style="color: red; font-weight: bold;">Got bitten? Missed the mosquito? Kill it here🦟</p>
 
   <div id="game-area">
     <div id="mosquito">🦟</div>
@@ -334,8 +334,16 @@ for (let i = 0; i < LEVEL_COUNT; i++) {
   const level = i + 1;
 
   // Smooth scaling from slow → extremely fast
-  const t = i / (LEVEL_COUNT - 1);
-  const moveEveryMs = Math.round(BASE_INTERVAL - t * (BASE_INTERVAL - MIN_INTERVAL));
+  // raw progression 0 → 1
+const rawT = i / (LEVEL_COUNT - 1);
+
+// curve it so early levels get harder faster
+// 0.6 makes the speed jump earlier; you can try 0.5 for even more aggressive
+const t = Math.pow(rawT, 0.6);
+
+const moveEveryMs = Math.round(
+  BASE_INTERVAL - t * (BASE_INTERVAL - MIN_INTERVAL)
+);
 
   // Slight size shrink at higher levels
   const size = Math.max(20, 55 - i * 0.03); // min 20px
