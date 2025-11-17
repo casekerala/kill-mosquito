@@ -212,7 +212,7 @@
 </head>
 <body>
   <h1>Kill Mosquito</h1>
-  <p style="color: red; font-weight: bold;">Got bitten? Missed the mosquito? Kill it here!🦟</p>
+  <p style="color: red; font-weight: bold;">Got bitten? Missed the mosquito? Kill it here>>🦟</p>
 
   <div id="game-area">
     <div id="mosquito">🦟</div>
@@ -257,19 +257,21 @@
      ***********************/
     import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
     import {
-      getFirestore,
-      doc,
-      getDoc,
-      setDoc,
-      updateDoc,
-      increment,
-      collection,
-      query,
-      orderBy,
-      limit,
-      getDocs,
-      serverTimestamp
-    } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
+  getFirestore,
+  doc,
+  getDoc,
+  setDoc,
+  updateDoc,
+  increment,
+  collection,
+  query,
+  orderBy,
+  where,
+  limit,
+  getDocs,
+  serverTimestamp,
+  onSnapshot   // 👈 add this
+} from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
     import {
       getAuth,
       signInAnonymously,
@@ -392,15 +394,39 @@ for (let i = 0; i < LEVEL_COUNT; i++) {
     }
 
     async function incrementGlobalKills(amount = 1) {
-      try {
-        const docRefFS = doc(db, "stats", "global");
-        await updateDoc(docRefFS, { globalKills: increment(amount) });
-        globalKills += amount;
-      } catch (err) {
-        console.error("Error updating global kills:", err);
+  try {
+    const docRefFS = doc(db, "stats", "global");
+    await updateDoc(docRefFS, { globalKills: increment(amount) });
+    // ❌ don't touch globalKills here
+    // The onSnapshot listener will update globalKills and call updateCounts()
+  } catch (err) {
+    console.error("Error updating global kills:", err);
+  }
+}
+
+    // Listen in real-time to global kill count from Firestore
+function listenToGlobalKills() {
+  const docRefFS = doc(db, "stats", "global");
+
+  onSnapshot(
+    docRefFS,
+    (snap) => {
+      if (snap.exists()) {
+        const data = snap.data();
+        globalKills = data.globalKills || 0;
+        updateCounts(); // 🔥 updates "Global mosquitoes killed: X"
+      } else {
+        // If the doc doesn't exist yet, create it with 0
+        setDoc(docRefFS, { globalKills: 0 }).catch((err) => {
+          console.error("Error creating global stats doc:", err);
+        });
       }
-      updateCounts();
+    },
+    (error) => {
+      console.error("Error listening to global kills:", error);
     }
+  );
+}
 
     function updateCounts() {
       killCountText.textContent = "Your mosquitoes killed: " + kills;
@@ -722,7 +748,7 @@ initAuthAndUser();
 
     updateCounts();
     syncMosquitoToCurrentLevel();
-    fetchGlobalKills();
+    listenToGlobalKills();
     loadLeaderboard();
 
     initAuthAndUser();   // 🔥 this line must exist
